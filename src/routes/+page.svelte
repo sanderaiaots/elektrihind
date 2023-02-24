@@ -1,25 +1,43 @@
 <script>
 	//https://dashboard.elering.ee/api/nps/price?start=2023-02-12T22:00:00.000Z&end=2023-02-13T21:59:59.999Z
-	const url =
-		'https://dashboard.elering.ee/api/nps/price?start=2023-01-31T22:00:00.000Z&end=2023-02-21T21:59:59.999Z';
+
 	import { onMount } from 'svelte';
 	import { apiData } from './hind.js';
+	import { DateInput } from 'date-picker-svelte';
+	let fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+	let toDate = new Date();
+	//new Date(currentDate);
+
 	let cons = { '1675980000': 1 };
 	let price = {};
 	let sumCount = 0;
 	let sumPrice = 0.0;
 	let sumConsumed = 0.0;
-	onMount(async () => {
+
+	async function loadNps() {
+		const editedTo = new Date(toDate);
+		editedTo.setDate(editedTo.getDate() + 1);
+		editedTo.setSeconds(editedTo.getSeconds() - 1);
+		const url =
+			'https://dashboard.elering.ee/api/nps/price?start=' +
+			fromDate.toISOString() +
+			'&end=' +
+			editedTo.toISOString();
 		fetch(url)
 			.then((r) => r.json())
 			.then((d) => {
 				apiData.set(d.data.ee);
+				price = {};
 				d.data.ee.forEach((p) => {
 					price[p.timestamp] = p.price;
 				});
+				parseFile();
 			})
 			.catch((error) => console.log('data error', error));
-	});
+	}
+
+	onMount(loadNps);
+	let csvData = null;
 	function parseTarbimine(event) {
 		console.log('read data', event);
 		if (event.target.files.length > 0) {
@@ -32,7 +50,15 @@
 	}
 
 	function fileReaded(event) {
-		const csvData = event.target.result;
+		csvData = event.target.result;
+		parseFile();
+	}
+
+	function parseFile() {
+		if (!csvData) {
+			console.log('csv is empty', csvData);
+			return;
+		}
 		//console.log(csvData);
 		const lines = csvData.split('\n');
 		let isAlgus = false;
@@ -101,6 +127,11 @@
 	<p>
 		Lae oma tarbimise fail: <input type="file" id="consumtion-file" on:change={parseTarbimine} />
 	</p>
+	<div class="date">
+		Alates: <DateInput bind:value={fromDate} format="dd.MM.yyyy" />
+		Kuni: <DateInput bind:value={toDate} format="dd.MM.yyyy" />
+		<button on:click={loadNps} value="Load NPS">Load NPS</button>
+	</div>
 	<p>
 		Total consumed: {sumConsumed} kwH, hours {sumCount}, days {sumCount / 24} <br />
 		Total price (no vat): {sumPrice} EUR, kwh avg {sumPrice / sumConsumed} EUR <br />
@@ -124,4 +155,8 @@
 </section>
 
 <style>
+	.date {
+		display: flex;
+		align-items: center;
+	}
 </style>
