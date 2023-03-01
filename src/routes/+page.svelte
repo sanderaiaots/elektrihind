@@ -7,11 +7,15 @@
 	let fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 	let toDate = new Date();
 	//new Date(currentDate);
+	let networkPriceDay = 0.0369;
+	let networkPriceNight = 0.021;
+	let renewablePrice = 0.0124;
 
 	let cons = { '1675980000': 1 };
 	let price = {};
 	let sumCount = 0;
 	let sumPrice = 0.0;
+	let sumNetworkPrice = 0.0;
 	let sumConsumed = 0.0;
 
 	async function loadNps() {
@@ -66,6 +70,7 @@
 		sumPrice = 0.0;
 		sumCount = 0;
 		sumConsumed = 0.0;
+		sumNetworkPrice = 0.0;
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
@@ -103,9 +108,13 @@
 					}
 					const key = val.toString();
 					const consumedInHour = parseFloat(tokens[4].replace(',', '.'));
-					tarbimine[key] = consumedInHour;
+					const isDay = tokens[2] == 'Päev';
+					tarbimine[key] = { cons: consumedInHour, isDay: isDay };
 					if (price[key]) {
 						sumPrice += (price[key] / 1000.0) * consumedInHour;
+						sumNetworkPrice +=
+							consumedInHour * (isDay ? networkPriceDay : networkPriceNight) +
+							consumedInHour * renewablePrice;
 						sumConsumed += consumedInHour;
 						sumCount++;
 					}
@@ -133,21 +142,36 @@
 		<button on:click={loadNps} value="Load NPS">Load NPS</button>
 	</div>
 	<p>
+		Võrgutasu päev: <input type="number" value={networkPriceDay} />
+		Võrgutasu öö: <input type="number" value={networkPriceNight} />
+		Taastuvenergia tasu: <input type="number" value={renewablePrice} />
+	</p>
+	<p>
 		Total consumed: {sumConsumed} kwH, hours {sumCount}, days {sumCount / 24} <br />
 		Total price (no vat): {sumPrice} EUR, kwh avg {sumPrice / sumConsumed} EUR <br />
-		Total price (vat): {sumPrice * 1.2} EUR, kwh avg {(sumPrice * 1.2) / sumConsumed} EUR
+		Total price (vat): {sumPrice * 1.2} EUR, kwh avg {(sumPrice * 1.2) / sumConsumed} EUR<br />
+		Total network price (no vat): {sumNetworkPrice} EUR <br />
+		Total network price (vat): {sumNetworkPrice * 1.2} EUR <br />
+		Total price with network(vat): {(sumPrice + sumNetworkPrice) * 1.2} EUR
 	</p>
 	<table border="1" cellpadding="0" cellspacing="0">
 		<thead>
-			<tr><th>Tund</th><th>Hind</th><th>Hind + km</th><th>consumed</th><th>Hind kokku</th> </tr>
+			<tr>
+				<th>Tund</th><th>Hind</th><th>Hind + km</th><th>consumed</th><th>Hind elekter</th>
+				<th>Hind võrk</th>
+			</tr>
 		</thead>
 		<tbody>
 			{#each $apiData as r}
 				<tr>
 					<td>{new Date(r.timestamp * 1000).toLocaleString()}</td>
 					<td>{r.price}</td><td>{(r.price * 1.2).toFixed(2)}</td>
-					<td>{cons[r.timestamp]}</td>
-					<td>{(r.price * cons[r.timestamp]) / 1000.0}</td>
+					<td>{cons[r.timestamp]?.cons}</td>
+					<td>{(r.price * cons[r.timestamp]?.cons) / 1000.0}</td>
+					<td>
+						{(cons[r.timestamp]?.isDay ? networkPriceDay : networkPriceNight) *
+							cons[r.timestamp]?.cons}
+					</td>
 				</tr>
 			{/each}
 		</tbody>
